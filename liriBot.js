@@ -1,45 +1,138 @@
-var twitter = require("twitter");
-var spotify = require("node-spotify-api");
+var Twitter = require("twitter");
+var Spotify = require("node-spotify-api");
 var request = require("request");
+var keysJS = require('./keys.js');
+var fs = require("fs");
+var spotifySearch;
+var movieSearch;
 var omdbKey = "a93e5cb5";
-var omdbResponse = {
-	"Title": "Guardians of the Galaxy Vol. 2",
-	"Year": "2017",
-	"Rated": "PG-13",
-	"Released": "05 May 2017",
-	"Runtime": "136 min",
-	"Genre": "Action, Adventure, Sci-Fi",
-	"Director": "James Gunn",
-	"Writer": "James Gunn, Dan Abnett (based on the Marvel comics by), Andy Lanning (based on the Marvel comics by), Steve Englehart (Star-lord created by), Steve Gan (Star-lord created by), Jim Starlin (Gamora and Drax created by), Stan Lee (Groot created by), Larry Lieber (Groot created by), Jack Kirby (Groot created by), Bill Mantlo (Rocket Raccoon created by), Keith Giffen (Rocket Raccoon created by), Steve Gerber (Howard the Duck created by), Val Mayerik (Howard the Duck created by)",
-	"Actors": "Chris Pratt, Zoe Saldana, Dave Bautista, Vin Diesel",
-	"Plot": "The Guardians must fight to keep their newfound family together as they unravel the mystery of Peter Quill's true parentage.",
-	"Language": "English",
-	"Country": "USA, New Zealand, Canada",
-	"Awards": "4 wins & 12 nominations.",
-	"Poster": "https://images-na.ssl-images-amazon.com/images/M/MV5BMTg2MzI1MTg3OF5BMl5BanBnXkFtZTgwNTU3NDA2MTI@._V1_SX300.jpg",
-	"Ratings": [
-	{
-	"Source": "Internet Movie Database",
-	"Value": "7.8/10"
-	},
-	{
-	"Source": "Rotten Tomatoes",
-	"Value": "82%"
-	},
-	{
-	"Source": "Metacritic",
-	"Value": "67/100"
-	}
-	],
-	"Metascore": "67",
-	"imdbRating": "7.8",
-	"imdbVotes": "287,912",
-	"imdbID": "tt3896198",
-	"Type": "movie",
-	"DVD": "22 Aug 2017",
-	"BoxOffice": "$389,804,217",
-	"Production": "Walt Disney Pictures",
-	"Website": "https://marvel.com/guardians",
-	"Response": "True"
+
+var spotify = new Spotify({
+	id: "1d1ead69149f4f70a9190fac99332a3f",
+	secret: "1f5c9e2288f447fd93265154e788d2de"
+});
+
+// FUNCTION FOR TWITTER CALLS
+var twitCall = function(){
+	var client = new Twitter({
+	  	consumer_key: keysJS.consumer_key,
+		consumer_secret: keysJS.consumer_secret,
+		access_token_key: keysJS.access_token_key,
+		access_token_secret: keysJS.access_token_secret
+	});
+	client.get('statuses/user_timeline', 'liribot4lyfe', function(error, tweets, response) {
+	  if (error) {
+	    console.log(error);
+	  } else {
+	  	console.log("\n \n Recent Tweets:");
+	  	for (var i = 0; i < tweets.length; i++) {
+	  		var theTweet = tweets[i].text;
+	  		var timestamp = tweets[i].created_at;
+	  		console.log("\n "+theTweet+"\n created: "+timestamp);
+	  		console.log("\n-------------------------------------");
+	  	}
+	  }
+	});
+}
+
+// FUNCTION FOR SPOTIFY CALLS
+var spotCall = function(){
+	spotify.search({ type: 'track', query: spotifySearch })
+	.then(function(response) {
+    	for (var i = 0; i < 5; i++) {
+    		var sumSearch = response.tracks.items[i];
+    		var artists = sumSearch.artists[0].name;
+    		var songName = sumSearch.name;
+    		var songAlbum = sumSearch.album.name;
+    		var previewLink = sumSearch.preview_url;
+    		console.log("Artist: " + artists);
+    		console.log("Song Title: " + songName);
+    		console.log("Album Title: " + songAlbum);
+    		console.log("Preview Song: " + previewLink);
+    		console.log("---------------------");
+    	}
+  	}).catch(function(err) {
+    	console.log(err);
+  	});
 };
+
+// FUNCTION FOR OMDB CALLS
+var omdbCall = function(){
+	request("http://www.omdbapi.com/?t=" + movieSearch + "&y=&plot=short&apikey=a93e5cb5", function(error, response, body) {
+		if (error) {
+			console.log(error)
+		}
+		var dataReturn = JSON.parse(body);
+		var title = dataReturn.Title;
+		var year = dataReturn.Year;
+		var rating = dataReturn.Ratings[0].Value;
+		var rtRating = dataReturn.Ratings[1].Value;
+		var country = dataReturn.Country;
+		var language = dataReturn.Language;
+		var plot = dataReturn.Plot;
+		var actors = dataReturn.Actors;
+		var display = "\n \n Title: "+title+"\n Year: "+year+"\n IMDB Rating: "+rating+"\n Rotten Tomatoes Rating: "+rtRating+"\n Country of Production: "+country+"\n Languages: "+language+"\n Plot: "+plot+"\n Actors: "+actors+"\n \n";
+		console.log(display);
+	});
+};
+
+// FUNCTION FOR READING & ACTING ON RANDOM.TXT FILE
+var readAndAct = function(){
+	fs.readFile("./random.txt", "utf8", function(err, data){
+		if (err) {
+			return console.log(err);
+		}
+		var textArray = data.split(',');
+		process.argv[2] = textArray[0]
+		process.argv[3] = textArray[1].replace(/"/g, " ").trim();
+		runChecker();
+	});
+};
+
+// FUNCTION FOR WRITING MOVIE AND SPOTIFY SEARCHES TO A LOG
+var writeToLog = function(){
+	var mySearch = process.argv.splice(3, process.argv.length).toString().replace(/,/g, " ");
+	var appendInfo = process.argv[2]+", "+mySearch+"\n";
+	console.log(appendInfo);
+	fs.appendFile("./log.txt", appendInfo, function(err, data){
+		if (err){
+			console.log(err);
+		} else {
+			console.log("data appended");
+		}
+	});
+};
+
+// FUNCTION THAT DETERMINES HOW TO ACT ON TERMINAL/CONSOLE INPUT
+var runChecker = function(){
+	if (process.argv[2] === "my-tweets"){
+		twitCall();
+	}
+	else if (process.argv[2] === "spotify-this-song"){
+		if (!process.argv[3]) {
+			spotifySearch = "the+sign+ace+of+base";
+			spotCall();
+		} else {
+			spotifySearch = process.argv.slice(3, process.argv.length).toString().replace(/,/g, "+");
+			spotCall();
+			writeToLog();
+		}
+	}
+	else if (process.argv[2] === "movie-this"){
+		if (!process.argv[3]){
+			movieSearch = "Mr+Nobody";
+			omdbCall();
+		} else {
+			movieSearch = process.argv.slice(3, process.argv.length).toString().replace(/,/g, "+");
+			omdbCall();
+			writeToLog();
+		}
+	}
+	else if (process.argv[2] === "do-what-it-says"){
+		readAndAct();
+	} else {
+		console.log("please enter: 'my-tweets', 'spotify-this-song', 'movie-this' or 'do-what-it-says'");
+	}
+};
+runChecker();
 
